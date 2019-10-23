@@ -1,4 +1,17 @@
 <?PHP
+/*
+=====================================================
+ DataLife Engine - by SoftNews Media Group 
+-----------------------------------------------------
+ http://dle-news.ru/
+-----------------------------------------------------
+ Copyright (c) 2004-2019 SoftNews Media Group
+=====================================================
+ This code is protected by copyright
+=====================================================
+ File: functions.inc.php
+=====================================================
+*/
 
 if( !defined( 'DATALIFEENGINE' ) ) {
 	header( "HTTP/1.1 403 Forbidden" );
@@ -166,7 +179,8 @@ function check_login($username, $md5_password, $post = true, $check_log = false)
 
 			if( $post ) { $a_id = 82; $extr =""; } else { $a_id = 86; if ($_SERVER['HTTP_REFERER']) $extr = $db->safesql(htmlspecialchars($_SERVER['HTTP_REFERER'], ENT_QUOTES)); else $extr = "Direct DLE Adminpanel"; }
 
-			$db->query( "INSERT INTO " . USERPREFIX . "_admin_logs (name, date, ip, action, extras) values ('".$db->safesql($member_id['name'])."', '{$_TIME}', '{$_IP}', '{$a_id}', '{$extr}')" );
+			if( version_compare($config['version_id'], "9.3", '>') )  $db->query( "INSERT INTO " . USERPREFIX . "_admin_logs (name, date, ip, action, extras) values ('".$db->safesql($member_id['name'])."', '{$_TIME}', '{$_IP}', '{$a_id}', '{$extr}')" );
+			
 			$_SESSION['check_log'] = 1;
 		}
 
@@ -187,6 +201,7 @@ function deletenewsbyid( $id ) {
 	
 	$db->query( "DELETE FROM " . PREFIX . "_post WHERE id='{$id}'" );
 	$db->query( "DELETE FROM " . PREFIX . "_post_extras WHERE news_id='{$id}'" );
+	$db->query( "DELETE FROM " . PREFIX . "_post_extras_cats WHERE news_id='{$id}'" );
 	$db->query( "DELETE FROM " . PREFIX . "_poll WHERE news_id='{$id}'" );
 	$db->query( "DELETE FROM " . PREFIX . "_poll_log WHERE news_id='{$id}'" );
 	$db->query( "DELETE FROM " . PREFIX . "_post_log WHERE news_id='{$id}'" );
@@ -250,7 +265,26 @@ function deletenewsbyid( $id ) {
 	}
 
 	$db->query( "DELETE FROM " . PREFIX . "_files WHERE news_id = '{$id}'" );
+	
+	$sql_result = $db->query( "SELECT user_id, favorites FROM " . USERPREFIX . "_users WHERE favorites LIKE '%{$id}%'" );
+	
+	while ( $row = $db->get_row($sql_result) ) {
+		
+		$temp_fav = explode( ",", $row['favorites'] );
+		$new_fav = array();
+		
+		foreach ( $temp_fav as $value ) {
+			$value = intval($value);
+			if($value != $id ) $new_fav[] = $value;
+		}
+		
+		if(count($new_fav)) $new_fav = $db->safesql(implode(",", $new_fav));
+		else $new_fav = "";
+		
+		$db->query( "UPDATE " . USERPREFIX . "_users SET favorites='{$new_fav}' WHERE user_id='{$row['user_id']}'" );
 
+	}
+	
 }
 
 function deletecomments( $id ) {
@@ -882,7 +916,7 @@ function clear_cache($cache_areas = false) {
 	$fdir = opendir( ENGINE_DIR . '/cache' );
 		
 	while ( $file = readdir( $fdir ) ) {
-		if( $file != '.htaccess' AND !is_dir($file) ) {
+		if( $file != '.htaccess' AND !is_dir(ENGINE_DIR . '/cache/' . $file) ) {
 			
 			if( $cache_areas ) {
 				
@@ -943,6 +977,7 @@ function xfieldsdataload($id) {
 		$xfielddatavalue = str_replace( "__NEWL__", "\r\n", $xfielddatavalue );
 		$data[$xfielddataname] = $xfielddatavalue;
 	}
+	
 	return $data;
 }
 
@@ -962,11 +997,9 @@ function xfieldsload() {
 		
 		foreach ( $filecontents as $name => $value ) {
 			
-			$value = trim($value);
-			
-			if( $value ) {
+			if( trim($value) ) {
 				
-				$tmp_arr = explode( "|", $value );
+				$tmp_arr = explode( "|", trim($value, "\t\n\r\0\x0B") );
 				
 				foreach ( $tmp_arr as $name2 => $value2 ) {
 					$value2 = str_replace( "&#124;", "|", $value2 );
@@ -997,19 +1030,24 @@ function create_metatags($story, $ajax = false) {
 	$story = preg_replace( "#\[hide(.*?)\](.+?)\[/hide\]#is", "", $story );
 	$story = preg_replace( "'\[attachment=(.*?)\]'si", "", $story );
 	$story = preg_replace( "'\[page=(.*?)\](.*?)\[/page\]'si", "", $story );
+	$story = preg_replace( "'{banner_(.*?)}'si", "", $story );
+	$story = preg_replace( "'\\[banner_(.*?)\\](.*?)\\[/banner_(.*?)\\]'si", "", $story );
 	$story = str_replace( "{PAGEBREAK}", "", $story );
 	$story = str_replace( "&nbsp;", " ", $story );
-	
+	$story = str_replace( "&#1072;", "a", $story );
+	$story = str_replace( "&#111;", "o", $story );
 	$story = str_replace( '<br />', ' ', $story );
 	$story = str_replace( '<br>', ' ', $story );
-	$story = strip_tags( $story );
 	$story = preg_replace( "#&(.+?);#", "", $story );
-	$story = trim(str_replace( " ,", "", $story ));
+	$story = str_replace( " ,", "", $story );
+	$story = trim(preg_replace('/\s+/u', ' ', $story));
+	
+	$story = strip_tags( $story );
  
 	if( trim( $_REQUEST['meta_title'] ) ) {
 
 		$headers['title'] = trim( htmlspecialchars( strip_tags( stripslashes($_REQUEST['meta_title'] ) ), ENT_COMPAT, $config['charset'] ) );
-		$headers['title'] = $db->safesql(str_replace( $fastquotes, '', $headers['title'] ));
+		$headers['title'] = $db->safesql(preg_replace('/\s+/u', ' ', str_replace( $fastquotes, '', $headers['title'] )));
 
 	} else $headers['title'] = "";
 	
@@ -1025,7 +1063,7 @@ function create_metatags($story, $ajax = false) {
 
 		}
 		
-		$headers['description'] = $db->safesql( str_replace( $fastquotes, '', $headers['description'] ));
+		$headers['description'] = $db->safesql( preg_replace('/\s+/u', ' ', str_replace( $fastquotes, '', $headers['description'] )));
 	
 	} elseif($config['create_metatags'] OR $ajax) {
 		
@@ -1060,7 +1098,7 @@ function create_metatags($story, $ajax = false) {
 
 		$_REQUEST['keywords'] = implode( ", ", $newarr );
 		
-		$headers['keywords'] = $db->safesql( str_replace( $fastquotes, " ", strip_tags( stripslashes( $_REQUEST['keywords'] ) ) ) );
+		$headers['keywords'] = $db->safesql( preg_replace('/\s+/u', ' ', str_replace( $fastquotes, " ", strip_tags( stripslashes( $_REQUEST['keywords'] ) ) ) ) );
 
 	} elseif( $config['create_metatags'] OR $ajax) {
 		
@@ -1160,21 +1198,19 @@ function permload($id) {
 function check_xss() {
 
 	if ($_GET['mod'] == "editnews" AND $_GET['action'] == "list") return;
+	if ($_GET['mod'] == "static" AND $_GET['action'] == "list") return;
 	if ($_GET['mod'] == "tagscloud" OR $_GET['mod'] == "links" OR $_GET['mod'] == "redirects"  OR $_GET['mod'] == "metatags") return;
 	
 	$url = html_entity_decode( urldecode( $_SERVER['QUERY_STRING'] ), ENT_QUOTES, 'ISO-8859-1' );
 
 	$url = str_replace( "\\", "/", $url );
 
-	
 	if( $url ) {
 		
 		if( (strpos( $url, '<' ) !== false) || (strpos( $url, '>' ) !== false) || (strpos( $url, '"' ) !== false) || (strpos( $url, './' ) !== false) || (strpos( $url, '../' ) !== false) || (strpos( $url, '\'' ) !== false) || (strpos( $url, '.php' ) !== false) ) {
-			
-			if( $_GET['mod'] != "editnews" OR $_GET['action'] != "list" ) {
-				header( "HTTP/1.1 403 Forbidden" );
-				die( "Hacking attempt!" );
-			}
+
+			header( "HTTP/1.1 403 Forbidden" );
+			die( "Hacking attempt!" );
 		
 		}
 	
@@ -1286,9 +1322,9 @@ function build_js($js) {
 	
 	if ($config['js_min']) {
 
-		$js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;g=admin&amp;v=25\"></script>";
+		$js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;g=admin&amp;v=27\"></script>";
 
-		if ( count($js) ) $js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $js)."&amp;v=25\" defer></script>";
+		if ( count($js) ) $js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $js)."&amp;v=27\" defer></script>";
 
 		return implode("\n", $js_array);
 
@@ -1304,7 +1340,7 @@ function build_js($js) {
 			
 			if($i > 0) $defer =" defer";
 			
-			$js_array[] = "<script src=\"{$value}?v=25\"{$defer}></script>";
+			$js_array[] = "<script src=\"{$value}?v=27\"{$defer}></script>";
 			
 			$i++;
 		
@@ -1330,13 +1366,13 @@ function build_css($css) {
 
 	if ($config['js_min']) {
 
-		return "<link href=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $css)."&amp;v=25\" rel=\"stylesheet\" type=\"text/css\">";
+		return "<link href=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $css)."&amp;v=27\" rel=\"stylesheet\" type=\"text/css\">";
 
 	} else {
 
 		foreach ($css as $value) {
 		
-			$css_array[] = "<link href=\"{$value}?v=25\" rel=\"stylesheet\" type=\"text/css\">";
+			$css_array[] = "<link href=\"{$value}?v=27\" rel=\"stylesheet\" type=\"text/css\">";
 		
 		}
 
@@ -1596,8 +1632,12 @@ function execute_query($id, $query) {
 	global $config, $db;
 
 	if(!$query) return;
-		
-	$query = str_ireplace(array("{prefix}", "{userprefix}", "{charset}"), array(PREFIX, USERPREFIX, COLLATE), $query);
+	
+	if( version_compare($db->mysql_version, '5.6.4', '<') ) {
+		$storage_engine = "MyISAM";
+	} else $storage_engine = "InnoDB";
+	
+	$query = str_ireplace(array("{prefix}", "{userprefix}", "{charset}", "{engine}"), array(PREFIX, USERPREFIX, COLLATE, $storage_engine), $query);
 
 	$db->query_errors_list = array();
 		
@@ -1826,3 +1866,5 @@ if (!function_exists('password_hash')) {
     }
 
 }
+
+?>
