@@ -1,4 +1,17 @@
 <?php
+/*
+=====================================================
+ DataLife Engine - by SoftNews Media Group 
+-----------------------------------------------------
+ http://dle-news.ru/
+-----------------------------------------------------
+ Copyright (c) 2004-2019 SoftNews Media Group
+=====================================================
+ This code is protected by copyright
+=====================================================
+ File: init.php
+=====================================================
+*/
 
 if( !defined( 'DATALIFEENGINE' ) ) {
 	header( "HTTP/1.1 403 Forbidden" );
@@ -6,9 +19,9 @@ if( !defined( 'DATALIFEENGINE' ) ) {
 	die( "Hacking attempt!" );
 }
 
-define('DINITVERSION', '7131' );
-define('VERSIONID',    '13.1' );
-define('BUILDID',      '102' );
+define('DINITVERSION', '1333' );
+define('VERSIONID',    '13.3' );
+define('BUILDID',      '101' );
 
 header("Content-type: text/html; charset=utf-8");
 header ("X-Frame-Options: SAMEORIGIN");
@@ -30,7 +43,6 @@ if( $config['only_ssl'] AND !isSSL() AND !isset($_SESSION['is_redirect']) ) {
 	die("Redirect");
 
 } elseif( isset($_SESSION['is_redirect']) ) { unset($_SESSION['is_redirect']); }
-
 
 $auto_detect_config = false;
 
@@ -547,3 +559,5 @@ if (!$is_loged_in AND $_SESSION['twofactor_auth']) {
 
 $db->close();
 GzipOut();
+
+?>
