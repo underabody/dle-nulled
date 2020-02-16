@@ -5,7 +5,7 @@
 -----------------------------------------------------
  http://dle-news.ru/
 -----------------------------------------------------
- Copyright (c) 2004-2019 SoftNews Media Group
+ Copyright (c) 2004-2020 SoftNews Media Group
 =====================================================
  This code is protected by copyright
 =====================================================
@@ -761,16 +761,18 @@ function totranslit($var, $lower = true, $punkt = true) {
 	return $var;
 }
 
-function langdate($format, $stamp, $servertime = false ) {
-	global $langdate, $member_id;
+function langdate($format, $stamp, $servertime = false, $custom = false ) {
+	global $langdate, $member_id, $customlangdate;
 
 	$timezones = array('Pacific/Midway','US/Samoa','US/Hawaii','US/Alaska','US/Pacific','America/Tijuana','US/Arizona','US/Mountain','America/Chihuahua','America/Mazatlan','America/Mexico_City','America/Monterrey','US/Central','US/Eastern','US/East-Indiana','America/Lima','America/Caracas','Canada/Atlantic','America/La_Paz','America/Santiago','Canada/Newfoundland','America/Buenos_Aires','America/Godthab','Atlantic/Stanley','Atlantic/Azores','Africa/Casablanca','Europe/Dublin','Europe/Lisbon','Europe/London','Europe/Amsterdam','Europe/Belgrade','Europe/Berlin','Europe/Bratislava','Europe/Brussels','Europe/Budapest','Europe/Copenhagen','Europe/Madrid','Europe/Paris','Europe/Prague','Europe/Rome','Europe/Sarajevo','Europe/Stockholm','Europe/Vienna','Europe/Warsaw','Europe/Zagreb','Europe/Athens','Europe/Bucharest','Europe/Helsinki','Europe/Istanbul','Asia/Jerusalem','Europe/Kiev','Europe/Minsk','Europe/Riga','Europe/Sofia','Europe/Tallinn','Europe/Vilnius','Asia/Baghdad','Asia/Kuwait','Africa/Nairobi','Asia/Tehran','Europe/Kaliningrad','Europe/Moscow','Europe/Volgograd','Europe/Samara','Asia/Baku','Asia/Muscat','Asia/Tbilisi','Asia/Yerevan','Asia/Kabul','Asia/Yekaterinburg','Asia/Tashkent','Asia/Kolkata','Asia/Kathmandu','Asia/Almaty','Asia/Novosibirsk','Asia/Jakarta','Asia/Krasnoyarsk','Asia/Hong_Kong','Asia/Kuala_Lumpur','Asia/Singapore','Asia/Taipei','Asia/Ulaanbaatar','Asia/Urumqi','Asia/Irkutsk','Asia/Seoul','Asia/Tokyo','Australia/Adelaide','Australia/Darwin','Asia/Yakutsk','Australia/Brisbane','Pacific/Port_Moresby','Australia/Sydney','Asia/Vladivostok','Asia/Sakhalin','Asia/Magadan','Pacific/Auckland','Pacific/Fiji');
+
+	if( is_array($custom) ) $locallangdate = $customlangdate; else $locallangdate = $langdate;
 
 	if (!$stamp) { $stamp = time(); }
 	
 	$local = new DateTime('@'.$stamp);
 
-	if ($member_id['timezone'] AND !$servertime) {
+	if (isset($member_id['timezone']) AND $member_id['timezone'] AND !$servertime) {
 		$localzone = $member_id['timezone'];
 
 	} else {
@@ -782,12 +784,12 @@ function langdate($format, $stamp, $servertime = false ) {
 
 	$local->setTimeZone(new DateTimeZone($localzone));
 
-	return strtr( $local->format($format), $langdate );
+	return strtr( $local->format($format), $locallangdate );
 
 }
 
 function CategoryNewsSelection($categoryid = 0, $parentid = 0, $nocat = TRUE, $sublevelmarker = '', $returnstring = '') {
-	global $cat, $cat_parentid, $member_id, $user_group, $mod;
+	global $cat_info, $member_id, $user_group, $mod;
 	
 	if ($mod == "addnews" OR $mod == "editnews") {
 		
@@ -813,15 +815,17 @@ function CategoryNewsSelection($categoryid = 0, $parentid = 0, $nocat = TRUE, $s
 		$sublevelmarker .= '&nbsp;&nbsp;&nbsp;&nbsp;';
 	}
 	
-	if( isset( $cat_parentid ) ) {
+	if( count( $cat_info ) ) {
 		
-		$root_category = @array_keys( $cat_parentid, $parentid );
+		$root_category = array();
 		
-		if( is_array( $root_category ) ) {
+		foreach ( $cat_info as $cats ) {
+			if( $cats['parentid'] == $parentid ) $root_category[] = $cats['id'];
+		}
+
+		if( count( $root_category ) ) {
 			
 			foreach ( $root_category as $id ) {
-				
-				$category_name = $cat[$id];
 				
 				if( ( $allow_list[0] == "all" OR in_array( $id, $allow_list ) ) OR $mod == "usergroup" OR $mod == "editusers" ) {
 					
@@ -835,7 +839,7 @@ function CategoryNewsSelection($categoryid = 0, $parentid = 0, $nocat = TRUE, $s
 						}
 					} elseif( $categoryid == $id ) $returnstring .= 'selected';
 					
-					$returnstring .= '>' . $sublevelmarker . $category_name . '</option>';
+					$returnstring .= '>' . $sublevelmarker . $cat_info[$id]['name'] . '</option>';
 				}
 				
 				$returnstring = CategoryNewsSelection( $categoryid, $id, $nocat, $sublevelmarker, $returnstring );
@@ -1319,12 +1323,13 @@ function build_js($js) {
 	$js_array = array();
 	$i=0;
 	$defer = "";
+	$v = substr(md5(DINITVERSION.SECURE_AUTH_KEY),0,5);
 	
 	if ($config['js_min']) {
 
-		$js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;g=admin&amp;v=27\"></script>";
+		$js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;g=admin&amp;v={$v}\"></script>";
 
-		if ( count($js) ) $js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $js)."&amp;v=27\" defer></script>";
+		if ( count($js) ) $js_array[] = "<script src=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $js)."&amp;v={$v}\" defer></script>";
 
 		return implode("\n", $js_array);
 
@@ -1340,7 +1345,7 @@ function build_js($js) {
 			
 			if($i > 0) $defer =" defer";
 			
-			$js_array[] = "<script src=\"{$value}?v=27\"{$defer}></script>";
+			$js_array[] = "<script src=\"{$value}?v={$v}\"{$defer}></script>";
 			
 			$i++;
 		
@@ -1361,18 +1366,19 @@ function build_css($css) {
 	);
 	
 	$css_array = array();
+	$v = substr(md5(DINITVERSION.SECURE_AUTH_KEY),0,5);
 
 	if ( count($css) ) $css = array_merge($default_array, $css); else $css = $default_array;
 
 	if ($config['js_min']) {
 
-		return "<link href=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $css)."&amp;v=27\" rel=\"stylesheet\" type=\"text/css\">";
+		return "<link href=\"engine/classes/min/index.php?charset={$config['charset']}&amp;f=".implode(",", $css)."&amp;v={$v}\" rel=\"stylesheet\" type=\"text/css\">";
 
 	} else {
 
 		foreach ($css as $value) {
 		
-			$css_array[] = "<link href=\"{$value}?v=27\" rel=\"stylesheet\" type=\"text/css\">";
+			$css_array[] = "<link href=\"{$value}?v={$v}\" rel=\"stylesheet\" type=\"text/css\">";
 		
 		}
 
@@ -1381,7 +1387,7 @@ function build_css($css) {
 
 }
 
-function dle_strlen($value, $charset ) {
+function dle_strlen($value, $charset = "utf-8" ) {
 
 	if( function_exists( 'mb_strlen' ) ) {
 		return mb_strlen( $value, $charset );
@@ -1392,7 +1398,7 @@ function dle_strlen($value, $charset ) {
 	return strlen($value);
 }
 
-function dle_substr($str, $start, $length, $charset ) {
+function dle_substr($str, $start, $length, $charset = "utf-8" ) {
 
 	if( function_exists( 'mb_substr' ) ) {
 		return mb_substr( $str, $start, $length, $charset );
@@ -1405,7 +1411,7 @@ function dle_substr($str, $start, $length, $charset ) {
 
 }
 
-function dle_strrpos($str, $needle, $charset ) {
+function dle_strrpos($str, $needle, $charset = "utf-8" ) {
 
 	if( function_exists( 'mb_strrpos' ) ) {
 		return mb_strrpos( $str, $needle, null, $charset );
@@ -1418,7 +1424,7 @@ function dle_strrpos($str, $needle, $charset ) {
 
 }
 
-function dle_strpos($str, $needle, $charset ) {
+function dle_strpos($str, $needle, $charset = "utf-8" ) {
 
 	if( function_exists( 'mb_strpos' ) ) {
 		return mb_strpos( $str, $needle, null, $charset );
@@ -1427,6 +1433,16 @@ function dle_strpos($str, $needle, $charset ) {
 	}
 
 	return strpos($str, $needle);
+
+}
+
+function dle_strtolower($str, $charset = "utf-8" ) {
+
+	if( function_exists( 'mb_strtolower' ) ) {
+		return mb_strtolower( $str, $charset );
+	}
+
+	return strtolower($str);
 
 }
 
@@ -1494,7 +1510,7 @@ function get_ip() {
 	return 'not detected';
 }
 
-function http_get_contents( $file ) {
+function http_get_contents( $file, $post_params = false ) {
 		
 	$data = false;
 
@@ -1506,12 +1522,20 @@ function http_get_contents( $file ) {
 			
 		$ch = curl_init();
 		curl_setopt( $ch, CURLOPT_URL, $file );
-		curl_setopt( $ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT'] );
-		@curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, 1 );
-		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1 );
-		curl_setopt( $ch, CURLOPT_TIMEOUT, 5 );
-		curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false);
-		curl_setopt( $ch, CURLOPT_HEADER, 0);
+
+		if( is_array($post_params) ) {
+
+			curl_setopt($ch, CURLOPT_POST, 1);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post_params));
+
+		}
+		
+		@curl_setopt( $ch, CURLOPT_FOLLOWLOCATION, true );
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt($ch, CURLOPT_TIMEOUT, 5 );
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
 			
 		$data = curl_exec( $ch );
 		curl_close( $ch );
@@ -1521,6 +1545,11 @@ function http_get_contents( $file ) {
 	} 
 
 	if( preg_match('/1|yes|on|true/i', ini_get('allow_url_fopen')) ) {
+
+		if( is_array($post_params) ) {
+
+			$file .= '?'.http_build_query($post_params);
+		}
 
 		$data = @file_get_contents( $file );
 			

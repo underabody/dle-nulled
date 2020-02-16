@@ -5,7 +5,7 @@
 -----------------------------------------------------
  http://dle-news.ru/
 -----------------------------------------------------
- Copyright (c) 2004-2019 SoftNews Media Group
+ Copyright (c) 2004-2020 SoftNews Media Group
 =====================================================
  This code is protected by copyright
 =====================================================
@@ -19,9 +19,9 @@ if( !defined( 'DATALIFEENGINE' ) ) {
 	die( "Hacking attempt!" );
 }
 
-define('DINITVERSION', '1333' );
-define('VERSIONID',    '13.3' );
-define('BUILDID',      '101' );
+define('DINITVERSION', '1404' );
+define('VERSIONID',    '14.0' );
+define('BUILDID',      '102' );
 
 header("Content-type: text/html; charset=utf-8");
 header ("X-Frame-Options: SAMEORIGIN");
@@ -142,7 +142,10 @@ if( ! is_array( $cat_info ) ) {
 	$cat_info = array ();
 	
 	$db->query( "SELECT * FROM " . PREFIX . "_category ORDER BY posi ASC" );
+	
 	while ( $row = $db->get_row() ) {
+		
+		if( !$row['active'] ) continue;
 		
 		$cat_info[$row['id']] = array ();
 		
@@ -151,15 +154,9 @@ if( ! is_array( $cat_info ) ) {
 		}
 	
 	}
+	
 	set_vars( "category", $cat_info );
 	$db->free();
-}
-
-if( count( $cat_info ) ) {
-	foreach ( $cat_info as $key ) {
-		$cat[$key['id']] = $key['name'];
-		$cat_parentid[$key['id']] = $key['parentid'];
-	}
 }
 
 if( $_REQUEST['action'] == "logout" ) {
@@ -372,7 +369,7 @@ if( $is_loged_in AND $_REQUEST['subaction'] == 'dologin' ) {
 	$hash = '';
 		
 	for($i = 0; $i < 9; $i ++) {
-		$hash .= $salt{mt_rand( 0, 39 )};
+		$hash .= $salt[mt_rand( 0, 39 )];
 	}
 		
 	$hash = md5( $hash );
