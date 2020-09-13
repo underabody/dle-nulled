@@ -19,9 +19,9 @@ if( !defined( 'DATALIFEENGINE' ) ) {
 	die( "Hacking attempt!" );
 }
 
-define('DINITVERSION', '1404' );
-define('VERSIONID',    '14.0' );
-define('BUILDID',      '102' );
+define('DINITVERSION', '1501' );
+define('VERSIONID',    '14.1' );
+define('BUILDID',      '101' );
 
 header("Content-type: text/html; charset=utf-8");
 header ("X-Frame-Options: SAMEORIGIN");
@@ -167,6 +167,7 @@ if( $_REQUEST['action'] == "logout" ) {
 	set_cookie( "dle_newpm", "", 0 );
 	set_cookie( "dle_hash", "", 0 );
 	set_cookie( "dle_compl", "", 0 );
+	set_cookie( "timeout_session", 0, 0 );
 	set_cookie( session_name(), "", 0 );
 	
 	@session_unset();
@@ -481,7 +482,16 @@ if($is_loged_in AND COLLATE != "utf8" AND COLLATE != "utf8mb4" AND $mod != "upgr
 $config['ip_control'] = $login_params['ip_control'];
 $config['log_hash'] = $login_params['log_hash'];
 
-if (!$is_loged_in AND $_SESSION['twofactor_auth']) {
+if( $is_loged_in AND intval($_COOKIE['timeout_session']) ) {
+
+		$_SESSION['timeout_session'] = 1;
+}
+
+if ($is_loged_in AND $_SESSION['timeout_session']) {
+	
+	include_once (DLEPlugins::Check(ENGINE_DIR . '/inc/timeout.php'));
+	
+} elseif (!$is_loged_in AND $_SESSION['twofactor_auth']) {
 	
 	include_once (DLEPlugins::Check(ENGINE_DIR . '/inc/twofactor.php'));
 	
